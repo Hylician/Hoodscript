@@ -272,7 +272,7 @@ local function GetPlayerColor(OtherPlayer)
 		if ESPSettings.RainbowText and (ESPSettings.NameESP or ESPSettings.HealthESP) then return RainbowColor:Get() end
 	end
 	local Character = OtherPlayer.Character
-	return LocalFriends[OtherPlayer] or Character and Character:FindFirstChildWhichIsA("ForceField") and Colors.Ally or Colors.Enemy
+	return (LocalFriends[OtherPlayer] or (Character and Character:FindFirstChildWhichIsA("ForceField"))) and Colors.Ally or Colors.Enemy
 end
 
 local function GetBoxCorners(cf, size)
@@ -652,7 +652,7 @@ local function UpdateESP(OtherPlayer)
 
 				highlight.FillTransparency = -1
 			else
-				highlight.FillColor = ESPSettings.ChamsFillColor
+				highlight.FillColor = color --ESPSettings.ChamsFillColor
 				highlight.FillTransparency = ESPSettings.ChamsTransparency
 			end
 
