@@ -13,6 +13,9 @@ local GunModules = GunFramework:WaitForChild("Modules")
 local ProjectileModule = GunModules:WaitForChild("Projectile")
 
 local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local Mouse = Player:GetMouse()
+
 local Camera = workspace.CurrentCamera
 local Highlights, ServiceConnections = {}, {}
 
@@ -344,8 +347,6 @@ local function UpdateESP(OtherPlayer)
 	local character = OtherPlayer.Character
 	local rootPart = character and character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character and character:FindFirstChild("Humanoid")
-	local _, isOnScreen = rootPart and Camera:WorldToViewportPoint(rootPart.Position)
-	local distance = rootPart and (rootPart.Position - Camera.CFrame.Position).Magnitude
 	if not character and not rootPart and not humanoid or humanoid and humanoid.Health <= 0 then 
 
 		-- Hide all drawings if character doesn't exist
@@ -664,7 +665,7 @@ local function UpdateESP(OtherPlayer)
 			highlight.Enabled = false
 		end
 	else
-		Highlights[OtherPlayer] = Instance.new("Highlight")
+		Highlights[OtherPlayer] = character:FindFirstChildWhichIsA("Highlight") or Instance.new("Highlight", character)
 	end
 
 	if ESPSettings.SkeletonESP then
@@ -847,6 +848,17 @@ local function GetTeleports()
 	return TeleportList
 end
 
+local function GetPlayers()
+	local PlayerList = {}
+	for Index, otherPlayer in pairs(Players:GetPlayers()) do
+		if otherPlayer ~= Player then
+			table.insert(PlayerList, otherPlayer.Name)
+		end
+	end
+
+	return PlayerList
+end
+
 local function Teleport(CFrame)
 	local Backpack = Player.Backpack
 
@@ -879,6 +891,83 @@ local function Teleport(CFrame)
 					RootPart.Anchored = false
 				end
 			end
+		end
+	end
+end
+
+local function BecomePolice()
+	Remotes.ControllerRemote:FireServer("/signin")
+end
+
+local function GetGrabTool()
+	local Backpack = Player:WaitForChild("Backpack")
+	local GrabTool = Backpack:FindFirstChild("GrabTool")
+	if GrabTool then
+		return GrabTool
+	else
+		BecomePolice()
+		Backpack.ChildAdded:Wait()
+		return Backpack:WaitForChild("GrabTool")
+	end
+end
+
+local function Bring(Head)
+	local GrabTool = GetGrabTool()
+	if GrabTool and Head then
+		local Remote = GrabTool:WaitForChild("RemoteEvent")
+		Remote:FireServer("Cuff", Head, GrabTool)
+	end
+end
+
+local function GetPSUButton(ItemName)
+	local PSUGui = PlayerGui:FindFirstChild("PSU")
+	if PSUGui then
+		local Main = PSUGui:WaitForChild("Main")
+		for Index, Item in pairs(Main:GetDescendants()) do
+			if Item:IsA("ImageButton") and Item:FindFirstChild("Tool") and Item.Name == ItemName then
+				return Item
+			end
+		end
+	end
+end
+
+local function GetPSUItem(ItemName)
+	local ItemButton = GetPSUButton(ItemName)
+	if ItemButton then
+		replicatesignal(ItemButton.MouseButton1Click)
+	end
+end
+
+local function GetArmoryButton(ItemName)
+	local ArmoryGui = PlayerGui:FindFirstChild("Armory")
+	if ArmoryGui then
+		local Main = ArmoryGui:WaitForChild("Main")
+		for Index, Item in pairs(Main:GetDescendants()) do
+			if Item:IsA("ImageButton") and Item:FindFirstChild("Tool") and Item.Name == ItemName then
+				return Item
+			end
+		end
+	end
+end
+
+local function GetArmoryItem(ItemName)
+	local ItemButton = GetArmoryButton(ItemName)
+	if ItemButton then
+		replicatesignal(ItemButton.MouseButton1Click)
+	end
+end
+
+local function GetStunTool()
+	local Backpack = Player:WaitForChild("Backpack")
+	local Tazer = Backpack:FindFirstChild("Tazer")
+	if Tazer then
+		return Tazer
+	else
+		GetArmoryItem("Tazer")
+		Backpack.ChildAdded:Wait()
+		local Tazer = Backpack:FindFirstChild("Tazer")
+		if Tazer then
+			return Tazer
 		end
 	end
 end
@@ -1593,6 +1682,65 @@ RightSpecificSection:CreateButton({
 	end
 })
 
+local SelectedPlayer = nil
+local TeleportDropdown = RightSpecificSection:CreateDropdown({
+	Name = "Select Player",
+	List = GetPlayers(),
+	CurrentOption = {},
+	Callback = function(Option)
+		SelectedPlayer = Option
+	end
+})
+
+RightSpecificSection:CreateButton({
+	Name = "Teleport To",
+	Callback = function()
+		local SelectedPlayer = Players:FindFirstChild(SelectedPlayer)
+		if SelectedPlayer then
+			local SelectedCharacter = SelectedPlayer.Character
+			local RootPart = SelectedCharacter and SelectedCharacter:WaitForChild("HumanoidRootPart")
+			if RootPart then
+				Teleport(RootPart.CFrame)
+			end
+		else
+			PepsiLibrary:Notify({
+				Text = "Error: Select a person to teleport to first!",
+				Time = 4
+			})
+		end
+	end
+})
+
+RightSpecificSection:CreateButton({
+	Name = "Bring (Police)",
+	Callback = function()
+		local SelectedPlayer = Players:FindFirstChild(SelectedPlayer)
+		if SelectedPlayer then
+			local SelectedCharacter = SelectedPlayer.Character
+			local Head = SelectedCharacter and SelectedCharacter:WaitForChild("Head")
+			if Head then
+				Bring(Head)
+			end
+		else
+			PepsiLibrary:Notify({
+				Text = "Error: Select a person to bring first!",
+				Time = 4
+			})
+		end
+	end
+})
+
+local RightPoliceSection = SpecificTab:CreateSection({
+	Name = "Police",
+	Side = "Right"
+})
+
+local ClickArrest = RightPoliceSection:CreateToggle({
+	Name = "Click Arrest",
+	Flag = "ClickArrest",
+	Value = false
+})
+
 Window:CreateDesigner()
 local function UpdateVehicleDropdown()
 	VehicleDropdown:UpdateList(GetVehicles())
@@ -1723,7 +1871,7 @@ function Functions:Exit()
 		Connection:Disconnect()
 	end
 
-	local UnloadFunction = Environment.Unload
+	local UnloadFunction = shared.unloadall
 	if UnloadFunction then
 		UnloadFunction()
 	end
@@ -1825,6 +1973,49 @@ do
 	ServiceConnections.ESPPlayerRemoving = Players.PlayerRemoving:Connect(RemoveESP)
 end
 
+do
+	UserInputService.InputBegan:Connect(function(InputObject, gameProcessedEvent)
+		if not gameProcessedEvent and InputObject.UserInputType == Enum.UserInputType.MouseButton1 and UserInputService:IsKeyDown(Enum.KeyCode.E) and ClickArrest:Get() then
+			local Character = Player.Character
+			local Humanoid = Character and Character:FindFirstChild("Humanoid")
+			local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+			if Humanoid and RootPart then
+				local MouseHit = Mouse.Hit
+				if MouseHit then
+					local Backpack = Player:WaitForChild("Backpack")
+					local GrabTool = GetGrabTool()
+					if GrabTool then
+						local GrabAnim = Humanoid:LoadAnimation(GrabTool.Handler:WaitForChild("Animation"))
+						local Remote = GrabTool:WaitForChild("RemoteEvent")
+						for Index, otherPlayer in pairs(Players:GetPlayers()) do
+							if otherPlayer ~= Player then
+								local otherCharacter = otherPlayer.Character
+								if not otherCharacter then
+									continue
+								end
+
+								local Head = otherCharacter and otherCharacter:FindFirstChild("Head")
+								local otherRootPart = otherCharacter and otherCharacter:FindFirstChild("HumanoidRootPart")
+								if otherRootPart and Head and (otherRootPart.Position - MouseHit.Position).Magnitude <= 8 then
+									Humanoid:EquipTool(GrabTool)
+									GrabAnim:Play()
+									Remote:FireServer("Cuff", Head, GrabTool)
+									task.delay(4, function()
+										GrabAnim:Stop()
+										GrabAnim:Destroy()
+									end)
+
+									break
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end)
+end
+
 local MaxStamina = 100
 do
 	local __namecall
@@ -1834,6 +2025,14 @@ do
 		end
 
 		return __namecall(self, ...)
+	end)
+end
+
+do
+	ServiceConnections.GuiAdded = PlayerGui.ChildAdded:Connect(function(Child)
+		if Child:IsA("ScreenGui") and Child.Name == "PSU" or Child.Name == "Armory" then
+			Child.Enabled = false
+		end
 	end)
 end
 
